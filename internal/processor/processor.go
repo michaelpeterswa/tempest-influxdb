@@ -119,7 +119,7 @@ func processPacket(ctx context.Context, cfg *config.Config, logger *logger.AppLo
 		return
 	}
 
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 {
 		logger.Error("InfluxDB returned error status",
@@ -163,7 +163,7 @@ func NewWeatherService(cfg *config.Config, appLogger *logger.AppLogger) (*Weathe
 func (ws *WeatherService) Start(ctx context.Context) error {
 	ws.logger.Info("Weather service started")
 
-	defer ws.listener.Close()
+	defer func() { _ = ws.listener.Close() }()
 
 	// Parse Influx URL and append API path
 	influxURL, err := url.Parse(ws.config.Influx_URL + ws.config.Influx_API_Path)
@@ -184,7 +184,7 @@ func (ws *WeatherService) Start(ctx context.Context) error {
 			return ctx.Err()
 		default:
 			// Set read timeout to allow periodic context checking
-			ws.listener.SetReadDeadline(time.Now().Add(1 * time.Second))
+			_ = ws.listener.SetReadDeadline(time.Now().Add(1 * time.Second))
 
 			b := make([]byte, ws.config.Buffer)
 			n, addr, err := ws.listener.ReadFrom(b)

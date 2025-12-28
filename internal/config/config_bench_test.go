@@ -8,13 +8,20 @@ import (
 // Benchmark tests for configuration loading and validation
 func BenchmarkLoadConfig(b *testing.B) {
 	// Set up environment variables for consistent testing
-	os.Setenv("TEMPEST_INFLUX_INFLUX_URL", "http://localhost:8086/api/v2/write")
-	os.Setenv("TEMPEST_INFLUX_INFLUX_TOKEN", "test-token")
-	os.Setenv("TEMPEST_INFLUX_INFLUX_BUCKET", "test-bucket")
+	b.Helper()
+	if err := os.Setenv("TEMPEST_INFLUX_INFLUX_URL", "http://localhost:8086/api/v2/write"); err != nil {
+		b.Fatalf("Failed to set env: %v", err)
+	}
+	if err := os.Setenv("TEMPEST_INFLUX_INFLUX_TOKEN", "test-token"); err != nil {
+		b.Fatalf("Failed to set env: %v", err)
+	}
+	if err := os.Setenv("TEMPEST_INFLUX_INFLUX_BUCKET", "test-bucket"); err != nil {
+		b.Fatalf("Failed to set env: %v", err)
+	}
 	defer func() {
-		os.Unsetenv("TEMPEST_INFLUX_INFLUX_URL")
-		os.Unsetenv("TEMPEST_INFLUX_INFLUX_TOKEN")
-		os.Unsetenv("TEMPEST_INFLUX_INFLUX_BUCKET")
+		_ = os.Unsetenv("TEMPEST_INFLUX_INFLUX_URL")
+		_ = os.Unsetenv("TEMPEST_INFLUX_INFLUX_TOKEN")
+		_ = os.Unsetenv("TEMPEST_INFLUX_INFLUX_BUCKET")
 	}()
 
 	b.ResetTimer()

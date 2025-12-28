@@ -61,11 +61,13 @@ func TestEnvironmentVariableHandling(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Clear environment variable
-			os.Unsetenv(tt.envVar)
+			_ = os.Unsetenv(tt.envVar)
 
 			if tt.envValue != "" {
-				os.Setenv(tt.envVar, tt.envValue)
-				defer os.Unsetenv(tt.envVar)
+				if err := os.Setenv(tt.envVar, tt.envValue); err != nil {
+					t.Fatalf("Failed to set env: %v", err)
+				}
+				defer func() { _ = os.Unsetenv(tt.envVar) }()
 			}
 
 			// Simulate the logic from main
@@ -154,13 +156,19 @@ func TestMainIntegration(t *testing.T) {
 	}
 
 	// Set up minimal environment
-	os.Setenv("TEMPEST_INFLUX_INFLUX_URL", "http://localhost:8086/api/v2/write")
-	os.Setenv("TEMPEST_INFLUX_INFLUX_TOKEN", "test-token")
-	os.Setenv("TEMPEST_INFLUX_INFLUX_BUCKET", "test-bucket")
+	if err := os.Setenv("TEMPEST_INFLUX_INFLUX_URL", "http://localhost:8086/api/v2/write"); err != nil {
+		t.Fatalf("Failed to set env: %v", err)
+	}
+	if err := os.Setenv("TEMPEST_INFLUX_INFLUX_TOKEN", "test-token"); err != nil {
+		t.Fatalf("Failed to set env: %v", err)
+	}
+	if err := os.Setenv("TEMPEST_INFLUX_INFLUX_BUCKET", "test-bucket"); err != nil {
+		t.Fatalf("Failed to set env: %v", err)
+	}
 	defer func() {
-		os.Unsetenv("TEMPEST_INFLUX_INFLUX_URL")
-		os.Unsetenv("TEMPEST_INFLUX_INFLUX_TOKEN")
-		os.Unsetenv("TEMPEST_INFLUX_INFLUX_BUCKET")
+		_ = os.Unsetenv("TEMPEST_INFLUX_INFLUX_URL")
+		_ = os.Unsetenv("TEMPEST_INFLUX_INFLUX_TOKEN")
+		_ = os.Unsetenv("TEMPEST_INFLUX_INFLUX_BUCKET")
 	}()
 
 	// Test the main function components in sequence
@@ -193,13 +201,20 @@ func TestMainIntegration(t *testing.T) {
 
 // Benchmark the main function components
 func BenchmarkConfigLoad(b *testing.B) {
-	os.Setenv("TEMPEST_INFLUX_INFLUX_URL", "http://localhost:8086/api/v2/write")
-	os.Setenv("TEMPEST_INFLUX_INFLUX_TOKEN", "test-token")
-	os.Setenv("TEMPEST_INFLUX_INFLUX_BUCKET", "test-bucket")
+	b.Helper()
+	if err := os.Setenv("TEMPEST_INFLUX_INFLUX_URL", "http://localhost:8086/api/v2/write"); err != nil {
+		b.Fatalf("Failed to set env: %v", err)
+	}
+	if err := os.Setenv("TEMPEST_INFLUX_INFLUX_TOKEN", "test-token"); err != nil {
+		b.Fatalf("Failed to set env: %v", err)
+	}
+	if err := os.Setenv("TEMPEST_INFLUX_INFLUX_BUCKET", "test-bucket"); err != nil {
+		b.Fatalf("Failed to set env: %v", err)
+	}
 	defer func() {
-		os.Unsetenv("TEMPEST_INFLUX_INFLUX_URL")
-		os.Unsetenv("TEMPEST_INFLUX_INFLUX_TOKEN")
-		os.Unsetenv("TEMPEST_INFLUX_INFLUX_BUCKET")
+		_ = os.Unsetenv("TEMPEST_INFLUX_INFLUX_URL")
+		_ = os.Unsetenv("TEMPEST_INFLUX_INFLUX_TOKEN")
+		_ = os.Unsetenv("TEMPEST_INFLUX_INFLUX_BUCKET")
 	}()
 
 	b.ResetTimer()

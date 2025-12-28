@@ -2,124 +2,14 @@ package processor
 
 import (
 	"context"
-	"errors"
-	"net"
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/jacaudi/tempest-influxdb/internal/config"
 	"github.com/jacaudi/tempest-influxdb/internal/logger"
 )
-
-// Mock UDP connection for testing
-type mockUDPConn struct {
-	data     [][]byte
-	addrs    []*net.UDPAddr
-	errors   []error
-	index    int
-	closed   bool
-	deadline time.Time
-	mu       sync.Mutex
-}
-
-func newMockUDPConn() *mockUDPConn {
-	return &mockUDPConn{
-		data:   make([][]byte, 0),
-		addrs:  make([]*net.UDPAddr, 0),
-		errors: make([]error, 0),
-	}
-}
-
-func (m *mockUDPConn) addPacket(data []byte, addr *net.UDPAddr, err error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.data = append(m.data, data)
-	m.addrs = append(m.addrs, addr)
-	m.errors = append(m.errors, err)
-}
-
-func (m *mockUDPConn) ReadFrom(b []byte) (n int, addr net.Addr, err error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if m.index >= len(m.data) {
-		// Return timeout to allow context checking
-		return 0, nil, &net.OpError{Op: "read", Net: "udp", Err: timeoutError{}}
-	}
-
-	data := m.data[m.index]
-	addr = m.addrs[m.index]
-	err = m.errors[m.index]
-	m.index++
-
-	if err != nil {
-		return 0, addr, err
-	}
-
-	n = copy(b, data)
-	return n, addr, nil
-}
-
-func (m *mockUDPConn) SetReadDeadline(t time.Time) error {
-	m.deadline = t
-	return nil
-}
-
-func (m *mockUDPConn) Close() error {
-	m.closed = true
-	return nil
-}
-
-// timeoutError implements net.Error
-type timeoutError struct{}
-
-func (timeoutError) Error() string   { return "timeout" }
-func (timeoutError) Timeout() bool   { return true }
-func (timeoutError) Temporary() bool { return true }
-
-// Mock HTTP client for testing
-type mockHTTPClient struct {
-	responses []*http.Response
-	errors    []error
-	requests  []*http.Request
-	index     int
-	mu        sync.Mutex
-}
-
-func newMockHTTPClient() *mockHTTPClient {
-	return &mockHTTPClient{
-		responses: make([]*http.Response, 0),
-		errors:    make([]error, 0),
-		requests:  make([]*http.Request, 0),
-	}
-}
-
-func (m *mockHTTPClient) addResponse(resp *http.Response, err error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.responses = append(m.responses, resp)
-	m.errors = append(m.errors, err)
-}
-
-func (m *mockHTTPClient) Do(req *http.Request) (*http.Response, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	m.requests = append(m.requests, req)
-
-	if m.index >= len(m.responses) {
-		return nil, errors.New("no more responses")
-	}
-
-	resp := m.responses[m.index]
-	err := m.errors[m.index]
-	m.index++
-
-	return resp, err
-}
 
 func TestCreateOptimizedHTTPClient(t *testing.T) {
 	client := createOptimizedHTTPClient()
@@ -187,7 +77,7 @@ func TestNewWeatherService(t *testing.T) {
 	}
 
 	// Clean up
-	service.listener.Close()
+	_ = service.listener.Close()
 }
 
 func TestNewWeatherServiceInvalidAddress(t *testing.T) {
@@ -291,7 +181,7 @@ func TestWeatherServiceContextCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWeatherService() error = %v", err)
 	}
-	defer service.listener.Close()
+	defer func() { _ = service.listener.Close() }()
 
 	// Create a context that will be cancelled quickly
 	ctx, cancel := context.WithCancel(context.Background())
@@ -324,18 +214,19 @@ func TestBufferPool(t *testing.T) {
 		t.Errorf("Expected buffer length %d, got %d", config.DefaultBuffer, len(buf1))
 	}
 
-	// Put it back
-	bufferPool.Put(buf1)
+	// Put it back (use pointer to slice header to avoid SA6002)
+	bufferPool.Put(&buf1)
 
 	// Get another buffer
-	buf2 := bufferPool.Get().([]byte)
-	if len(buf2) != config.DefaultBuffer {
-		t.Errorf("Expected buffer length %d, got %d", config.DefaultBuffer, len(buf2))
+	buf2 := bufferPool.Get()
+	var buf2Slice []byte
+	if ptr, ok := buf2.(*[]byte); ok {
+		buf2Slice = *ptr
+	} else {
+		buf2Slice = buf2.([]byte)
 	}
-
-	// Should be the same buffer (reused)
-	if &buf1[0] != &buf2[0] {
-		t.Log("Buffers are different (this is okay, just means pool created new buffer)")
+	if len(buf2Slice) != config.DefaultBuffer {
+		t.Errorf("Expected buffer length %d, got %d", config.DefaultBuffer, len(buf2Slice))
 	}
 }
 
@@ -351,6 +242,6 @@ func BenchmarkBufferPoolGetPut(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		buf := bufferPool.Get().([]byte)
-		bufferPool.Put(buf)
+		bufferPool.Put(&buf)
 	}
 }
