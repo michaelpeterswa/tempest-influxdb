@@ -127,6 +127,7 @@ func parseObservation(cfg *config.Config, report Report, m *influx.Data) error {
 	m.Fields = map[string]string{
 		"battery":            fmt.Sprintf("%.2f", observation.Battery),
 		"dew_point":          fmt.Sprintf("%.2f", dp),
+		"humidity":           fmt.Sprintf("%.2f", observation.RelativeHumidity),
 		"illuminance":        fmt.Sprintf("%d", observation.Illuminance),
 		"p":                  fmt.Sprintf("%.2f", observation.StationPressure),
 		"precipitation":      fmt.Sprintf("%.2f", observation.PrecipitationAccumulation),

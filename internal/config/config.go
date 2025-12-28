@@ -124,7 +124,9 @@ func Load(path string, name string) *Config {
 	viper.AutomaticEnv()
 
 	flag.Parse()
-	viper.BindPFlags(flag.CommandLine)
+	if err := viper.BindPFlags(flag.CommandLine); err != nil {
+		log.Fatalf("Failed to bind pflags: %v", err)
+	}
 	if viper.GetBool("debug") {
 		viper.Set("verbose", true)
 	}
